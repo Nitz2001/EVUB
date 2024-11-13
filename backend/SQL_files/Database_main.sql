@@ -89,4 +89,23 @@ CREATE TABLE venue_booking(
     FOREIGN KEY (eventID) REFERENCES event(eventID)
 );
 
+DELIMITER //
+CREATE TRIGGER check_venue_availability BEFORE INSERT ON event
+FOR EACH ROW
+BEGIN
+  DECLARE venue_busy INT;
 
+  SELECT COUNT(*) INTO venue_busy
+  FROM event
+  WHERE venueID = NEW.venueID
+    AND eventDate = NEW.eventDate
+    AND ((NEW.eventStartTime BETWEEN eventStartTime AND eventEndTime)
+         OR (NEW.eventEndTime BETWEEN eventStartTime AND eventEndTime));
+
+  IF venue_busy > 0 THEN
+    SIGNAL SQLSTATE '45000'
+    SET MESSAGE_TEXT = 'Venue is not available at the selected time.';
+  END IF;
+END;
+//
+DELIMITER ;

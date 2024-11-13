@@ -171,6 +171,101 @@ app.get('/events/filter', (req, res) => {
 
 
 // Add event API with club head verification and venue availability check
+// app.post('/events/add', (req, res) => {
+//   const { eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID } = req.body;
+//   const authHeader = req.headers['authorization'];
+//   const token = authHeader && authHeader.split(' ')[1];
+
+//   if (!token) return res.status(401).json({ message: 'Authorization token is missing' });
+
+//   jwt.verify(token, JWT_SECRET_KEY, (err, decoded) => {
+//     if (err) return res.status(403).json({ message: 'Invalid token' });
+
+//     const memberID = decoded.SRN; // Get memberID from the decoded JWT token
+
+//     // Step 1: Verify if the logged-in user (memberID) is the club head of the specified club
+//     const checkClubHeadQuery = `
+//       SELECT 1 FROM member 
+//       WHERE memberID = ? AND clubID = ? AND memberID = clubHeadID
+//     `;
+
+//     db.query(checkClubHeadQuery, [memberID, clubID], (err, results) => {
+//       if (err) {
+//         console.error('Database error:', err);
+//         return res.status(500).json({ message: 'Database error while verifying club head' });
+//       }
+
+//       // If no results, the user is not the club head
+//       if (results.length === 0) {
+//         return res.status(403).json({ message: 'Only club heads are authorized to add events for this club' });
+//       }
+
+//       // Step 2: Check if the venue is available
+//       const checkVenueAvailabilityQuery = `
+//             SELECT v.available
+//             FROM venue v
+//             LEFT JOIN venue_booking vb ON v.venueID = vb.venueID
+//             AND vb.booking_date = ? 
+//       AND (
+//         (? BETWEEN vb.start_time AND vb.end_time) OR
+//         (? BETWEEN vb.start_time AND vb.end_time)
+//       )
+//     WHERE v.venueID = ? 
+//       AND v.available = true
+//       AND vb.booking_date IS NULL;
+//       `;
+
+//       db.query(checkVenueAvailabilityQuery, [venueID], (err, venueResults) => {
+//         if (err) {
+//           console.error('Database error:', err);
+//           return res.status(500).json({ message: 'Database error while checking venue availability' });
+//         }
+
+//         // If no results, the venue is not available
+//         if (venueResults.length === 0) {
+//           return res.status(400).json({ message: 'The selected venue is not available for booking' });
+//         }
+
+//         // Step 3: Add the event and update the venue availability
+//         const addEventQuery = `
+//           INSERT INTO event (eventID, eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID)
+//           VALUES (?, ?, ?, ?, ?, ?, ?)
+//         `;
+
+//         const eventID = `E${Math.floor(1000 + Math.random() * 9000)}`; // Example ID generation
+
+//         db.query(addEventQuery, [eventID, eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID], (err, results) => {
+//           if (err) {
+//             console.error('Error adding event:', err);
+//             return res.status(500).json({ message: 'Error adding event' });
+//           }
+
+//           // Step 4: Update the venue's availability status to false
+//           const updateVenueAvailabilityQuery = `
+//             UPDATE venue 
+//             SET available = false 
+//             WHERE venueID = ?
+//           `;
+
+//           db.query(updateVenueAvailabilityQuery, [venueID], (err) => {
+//             if (err) {
+//               console.error('Error updating venue availability:', err);
+//               return res.status(500).json({ message: 'Error updating venue availability' });
+//             }
+
+//             res.status(201).json({ message: 'Event added successfully and venue marked as unavailable', eventID });
+//           });
+//         });
+//       });
+//     });
+//   });
+// });
+
+// Note: A MySQL trigger named 'check_venue_availability' is set up on the 'event' table
+// to prevent overlapping events for the same venue. It raises an error if a time conflict occurs.
+// This ensures that venue availability is enforced at the database level.
+
+
 app.post('/events/add', (req, res) => {
   const { eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID } = req.body;
   const authHeader = req.headers['authorization'];
@@ -200,66 +295,30 @@ app.post('/events/add', (req, res) => {
         return res.status(403).json({ message: 'Only club heads are authorized to add events for this club' });
       }
 
-      // Step 2: Check if the venue is available
-      const checkVenueAvailabilityQuery = `
-            SELECT v.available
-            FROM venue v
-            LEFT JOIN venue_booking vb ON v.venueID = vb.venueID
-            AND vb.booking_date = ? 
-      AND (
-        (? BETWEEN vb.start_time AND vb.end_time) OR
-        (? BETWEEN vb.start_time AND vb.end_time)
-      )
-    WHERE v.venueID = ? 
-      AND v.available = true
-      AND vb.booking_date IS NULL;
+      // Step 2: Add the event without additional venue availability check
+      const addEventQuery = `
+        INSERT INTO event (eventID, eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `;
 
-      db.query(checkVenueAvailabilityQuery, [venueID], (err, venueResults) => {
+      const eventID = `E${Math.floor(1000 + Math.random() * 9000)}`; // Example ID generation
+
+      db.query(addEventQuery, [eventID, eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID], (err, results) => {
         if (err) {
-          console.error('Database error:', err);
-          return res.status(500).json({ message: 'Database error while checking venue availability' });
-        }
-
-        // If no results, the venue is not available
-        if (venueResults.length === 0) {
-          return res.status(400).json({ message: 'The selected venue is not available for booking' });
-        }
-
-        // Step 3: Add the event and update the venue availability
-        const addEventQuery = `
-          INSERT INTO event (eventID, eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `;
-
-        const eventID = `E${Math.floor(1000 + Math.random() * 9000)}`; // Example ID generation
-
-        db.query(addEventQuery, [eventID, eventName, eventDate, eventStartTime, eventEndTime, clubID, venueID], (err, results) => {
-          if (err) {
-            console.error('Error adding event:', err);
-            return res.status(500).json({ message: 'Error adding event' });
+          if (err.sqlState === '45000') {
+            // Custom error from trigger for venue unavailability
+            return res.status(400).json({ message: 'The selected venue is not available for booking' });
           }
+          console.error('Error adding event:', err);
+          return res.status(500).json({ message: 'Error adding event' });
+        }
 
-          // Step 4: Update the venue's availability status to false
-          const updateVenueAvailabilityQuery = `
-            UPDATE venue 
-            SET available = false 
-            WHERE venueID = ?
-          `;
-
-          db.query(updateVenueAvailabilityQuery, [venueID], (err) => {
-            if (err) {
-              console.error('Error updating venue availability:', err);
-              return res.status(500).json({ message: 'Error updating venue availability' });
-            }
-
-            res.status(201).json({ message: 'Event added successfully and venue marked as unavailable', eventID });
-          });
-        });
+        res.status(201).json({ message: 'Event added successfully', eventID });
       });
     });
   });
 });
+
 
 // To get upcoming events
 // Filter and display events based on club, date, venue, and time
