@@ -109,3 +109,70 @@ BEGIN
 END;
 //
 DELIMITER ;
+
+
+
+DELIMITER //
+
+CREATE PROCEDURE RegisterForEvent(
+    IN p_SRN VARCHAR(13), 
+    IN p_eventID VARCHAR(10), 
+    OUT p_paymentID VARCHAR(10), 
+    OUT p_status_message VARCHAR(255)
+)
+BEGIN
+    DECLARE event_exists INT;
+    DECLARE registration_exists INT;
+    DECLARE registration_count INT;
+
+    -- Generate a payment ID (simulated here)
+    SET p_paymentID = CONCAT('PAY', LPAD(FLOOR(RAND() * 1000000), 7, '0'));
+
+    -- Define a labeled block for handling LEAVE
+    event_registration: BEGIN
+
+        -- Check if the event exists
+        SELECT COUNT(*) INTO event_exists
+        FROM event
+        WHERE eventID = p_eventID;
+
+        IF event_exists = 0 THEN
+            SET p_status_message = 'Event does not exist.';
+            LEAVE event_registration;
+        END IF;
+
+        -- Check if the student is already registered for the event
+        SELECT COUNT(*) INTO registration_exists
+        FROM registration
+        WHERE SRN = p_SRN AND eventID = p_eventID;
+
+        IF registration_exists > 0 THEN
+            SET p_status_message = 'Student is already registered for this event.';
+            LEAVE event_registration;
+        END IF;
+
+        -- Insert the payment record into the payment table
+        INSERT INTO payment (paymentID, SRN, amount, paymentStatus)
+        VALUES (p_paymentID, p_SRN, 100, TRUE);
+
+        -- Get the current count of records in the registration table
+        SELECT COUNT(*) INTO registration_count
+        FROM registration;
+
+        -- Add the registration record
+        INSERT INTO registration (registrationID, SRN, eventID, paymentID)
+        VALUES (
+            CONCAT('REG', LPAD(registration_count + 1, 7, '0')), 
+            p_SRN, 
+            p_eventID, 
+            p_paymentID
+        );
+
+        SET p_status_message = 'Registration successful!';
+    END event_registration;
+END;
+//
+
+DELIMITER ;
+
+
